@@ -1064,7 +1064,6 @@ static int rebind_subsystems(struct cgroupfs_root *root,
 		}
 	}
 	root->subsys_bits = root->actual_subsys_bits = final_bits;
-	synchronize_rcu();
 
 	return 0;
 }
