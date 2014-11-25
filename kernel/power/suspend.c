@@ -343,7 +343,9 @@ static int enter_state(suspend_state_t state)
 	if (!mutex_trylock(&pm_mutex))
 		return -EBUSY;
 
+#ifdef CONFIG_PM_SYNC_BEFORE_SUSPEND
 	suspend_sys_sync_queue();
+#endif
 	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state]);
 	suspend_wdset();
 	error = suspend_prepare();

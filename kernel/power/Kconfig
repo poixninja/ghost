@@ -352,3 +352,8 @@ config PM_DEEPSLEEP
 	help
 	  if enabling this feature, when PM state is set to DEEPSLEEP, the
 	  kernel ignore all key press except long press power key.
+
+config PM_SYNC_BEFORE_SUSPEND
+	bool "Sync file systems before suspend"
+	depends on PM
+	default y
