@@ -36,6 +36,10 @@
 #include <mach/msm_xo.h>
 #include <mach/msm_hsusb.h>
 
+#ifdef CONFIG_FORCE_FAST_CHARGE
+#include <linux/fastchg.h>
+#endif
+
 #define CHG_BUCK_CLOCK_CTRL	0x14
 #define CHG_BUCK_CLOCK_CTRL_8038	0xD
 
@@ -2452,6 +2456,32 @@ static void __pm8921_charger_vbus_draw(unsigned int mA)
 			i--;
 		if (i < 0)
 			i = 0;
+
+#ifdef CONFIG_FORCE_FAST_CHARGE
+		switch (fast_charge_level) {
+			case FAST_CHARGE_500:
+				i = 2;
+				break;
+			case FAST_CHARGE_700:
+				i = 4;
+				break;
+			case FAST_CHARGE_900:
+				i = 8;
+				break;
+			case FAST_CHARGE_AC:
+				i = 10;
+				break;
+			case FAST_CHARGE_1300:
+				i = 12;
+				break;
+			case FAST_CHARGE_1500:
+					i = 14;
+				break;
+			default:
+				break;
+		}
+		pr_debug("charge curent index => %d\n", i);
+#endif
 		rc = pm_chg_iusbmax_set(the_chip, i);
 		if (rc)
 			pr_err("unable to set iusb to %d rc = %d\n", i, rc);
