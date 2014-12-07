@@ -433,6 +433,12 @@ on post-fs-data
     exec /system/bin/sh /system/bin/moto_com.sh
     stop thermald
 
+#IKJBXLINE-3860 add omadm load property service
+service omadmLoadProp /system/bin/Omadmloadproperty
+    class boot
+    oneshot
+    disabled
+
 service ril-qmi /system/bin/sh /init.qcom.ril.sh
     class main
     user root
@@ -773,6 +779,8 @@ service mmi-touch-sh /system/bin/logwrapper /system/bin/sh /init.mmi.touch.sh
     disabled
 
 on boot
+#IKJBXLINE-3860 load omadm systemproperty
+    start omadmLoadProp
     start thermald
 
 on property:installd.post_fs_data_ready=1
