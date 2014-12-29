@@ -1,0 +1,9 @@
+# We must define bugreport at the product level, because the keycodes vary.
+service bugreport /system/bin/bug2go-bugreport
+    class main
+    disabled
+    oneshot
+    keycodes 116 359 359 359 # PWR + 3 second hold
+
+on boot
+    write /sys/class/graphics/fb0/acl_mode 1
