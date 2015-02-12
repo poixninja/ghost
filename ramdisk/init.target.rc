@@ -44,6 +44,9 @@ on early-init
     # Create modem FSG mount point
     mkdir /fsg 755 root root
 
+    write /sys/block/mmcblk0/queue/scheduler noop
+    write /sys/block/mmcblk0/bdi/read_ahead_kb 512
+
 on init
     copy /module_hashes /sys/kernel/module_whitelist
 
@@ -432,6 +435,14 @@ on post-fs-data
     start batt_health
     exec /system/bin/sh /system/bin/moto_com.sh
     stop thermald
+
+on property:init.svc.bootanim=stopped
+    # Switch to ROW and balanced mode after boot for better UX
+    write /sys/block/mmcblk0/queue/scheduler row
+
+on property:init.svc.bootanim=running
+    # Switch to NOOP while booting
+    write /sys/block/mmcblk0/queue/scheduler noop
 
 #IKJBXLINE-3860 add omadm load property service
 service omadmLoadProp /system/bin/Omadmloadproperty
