@@ -430,3 +430,5 @@ obj-$(CONFIG_MMI_RAM_INFO) += mmi-ram-info.o
 obj-$(CONFIG_MMI_ACPU_INFO) += mmi_acpu_info.o
 obj-$(CONFIG_HAS_MACH_MEMUTILS) += memutils/
 obj-$(CONFIG_FORCE_FAST_CHARGE) += fastchg.o
+
+obj-y += cpufreq_limit.o
