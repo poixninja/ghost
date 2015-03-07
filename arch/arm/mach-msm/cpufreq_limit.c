@@ -21,7 +21,7 @@
 
 #define CPUFREQ_LIMIT "cpufreq_limit"
 
-static uint32_t suspend_max_freq = 1026000;
+static uint32_t suspend_max_freq __read_mostly = 1026000;
 module_param(suspend_max_freq, uint, 0644);
 
 static uint32_t previous_max_freq = MSM_CPUFREQ_NO_LIMIT;
@@ -32,11 +32,14 @@ static void cpufreq_limit_early_suspend(struct early_suspend *h)
 
 	previous_max_freq = cpufreq_quick_get_max(0);
 
+	if (unlikely(previous_max_freq <= suspend_max_freq))
+		return;
+
 	for_each_possible_cpu(cpu) {
 		msm_cpufreq_set_freq_limits(cpu, MSM_CPUFREQ_NO_LIMIT,
                         suspend_max_freq ? suspend_max_freq : MSM_CPUFREQ_NO_LIMIT);
 
-                pr_info("%s: CPU%d max freq limited to: %d\n",
+                pr_info("%s: CPU%d max freq limited to: %d Hz\n",
 			CPUFREQ_LIMIT, cpu, suspend_max_freq);
 	}
 }
@@ -45,11 +48,14 @@ static void cpufreq_limit_late_resume(struct early_suspend *h)
 {
 	int cpu = 0;
 
+	if (unlikely(previous_max_freq <= suspend_max_freq))
+		return;
+
 	for_each_possible_cpu(cpu) {
 		msm_cpufreq_set_freq_limits(cpu, MSM_CPUFREQ_NO_LIMIT,
                         previous_max_freq);
 
-		pr_info("%s: CPU%d max frequency restored to %d\n",
+		pr_info("%s: CPU%d max frequency restored to %d Hz\n",
 			CPUFREQ_LIMIT, cpu, previous_max_freq);
 	}
 }
