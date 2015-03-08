@@ -16,6 +16,10 @@
 #include "acl.h"
 #include "xattr.h"
 
+#ifndef LOOKUP_NOCASE
+#define LOOKUP_NOCASE	0
+#endif
+
 static unsigned long dir_blocks(struct inode *inode)
 {
 	return ((unsigned long long) (i_size_read(inode) + PAGE_CACHE_SIZE - 1))
