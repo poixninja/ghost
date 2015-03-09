@@ -570,8 +570,42 @@ all: vmlinux
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
-KBUILD_CFLAGS	+= -O2
+KBUILD_CFLAGS	+= -O3
 endif
+
+KBUILD_CFLAGS += \
+-marm \
+-mcpu=cortex-a15 \
+-mtune=cortex-a15 \
+-mfloat-abi=softfp \
+-mfpu=neon-vfpv4 \
+-mvectorize-with-neon-double \
+--param l1-cache-size=16 \
+--param l1-cache-line-size=16 \
+--param l2-cache-size=1024 \
+-floop-interchange \
+-floop-strip-mine \
+-floop-block \
+-floop-nest-optimize \
+-fgraphite-identity \
+-floop-parallelize-all \
+-DNDEBUG \
+-fsection-anchors \
+-funsafe-loop-optimizations \
+-fivopts \
+-ftree-loop-im \
+-ftree-loop-ivcanon \
+-funswitch-loops \
+-frename-registers \
+-fgcse-sm \
+-fgcse-las \
+-fweb \
+-ftracer \
+-fipa-pta \
+-fmodulo-sched \
+-fmodulo-sched-allow-regmoves
+
+LDFLAGS += -O3 --sort-common
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
 
