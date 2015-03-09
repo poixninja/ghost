@@ -423,7 +423,7 @@ static struct socket *sock_from_file(struct file *file, int *err)
 struct socket *sockfd_lookup(int fd, int *err)
 {
 	struct file *file;
-	struct socket *sock;
+	struct socket *sock = NULL;
 
 	file = fget(fd);
 	if (!file) {
@@ -441,7 +441,7 @@ EXPORT_SYMBOL(sockfd_lookup);
 static struct socket *sockfd_lookup_light(int fd, int *err, int *fput_needed)
 {
 	struct file *file;
-	struct socket *sock;
+	struct socket *sock = NULL;
 
 	*err = -EBADF;
 	file = fget_light(fd, fput_needed);
@@ -465,7 +465,7 @@ static struct socket *sockfd_lookup_light(int fd, int *err, int *fput_needed)
 static struct socket *sock_alloc(void)
 {
 	struct inode *inode;
-	struct socket *sock;
+	struct socket *sock = NULL;
 
 	inode = new_inode_pseudo(sock_mnt->mnt_sb);
 	if (!inode)
@@ -809,7 +809,7 @@ static void sock_aio_dtor(struct kiocb *iocb)
 static ssize_t sock_sendpage(struct file *file, struct page *page,
 			     int offset, size_t size, loff_t *ppos, int more)
 {
-	struct socket *sock;
+	struct socket *sock = NULL;
 	int flags;
 
 	sock = file->private_data;
@@ -992,7 +992,7 @@ static long sock_do_ioctl(struct net *net, struct socket *sock,
 
 static long sock_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 {
-	struct socket *sock;
+	struct socket *sock = NULL;
 	struct sock *sk;
 	void __user *argp = (void __user *)arg;
 	int pid, err;
@@ -1097,7 +1097,7 @@ EXPORT_SYMBOL(sock_create_lite);
 /* No kernel lock held - perfect */
 static unsigned int sock_poll(struct file *file, poll_table *wait)
 {
-	struct socket *sock;
+	struct socket *sock = NULL;
 
 	/*
 	 *      We can't return errors to poll, so it's either yes or no.
@@ -1200,7 +1200,7 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 			 struct socket **res, int kern)
 {
 	int err;
-	struct socket *sock;
+	struct socket *sock = NULL;
 	const struct net_proto_family *pf;
 
 	/*
@@ -1325,7 +1325,7 @@ EXPORT_SYMBOL(sock_create_kern);
 SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
 {
 	int retval;
-	struct socket *sock;
+	struct socket *sock = NULL;
 	int flags;
 
 	/* Check the SOCK_* constants for consistency.  */
@@ -1366,7 +1366,7 @@ out_release:
 SYSCALL_DEFINE4(socketpair, int, family, int, type, int, protocol,
 		int __user *, usockvec)
 {
-	struct socket *sock1, *sock2;
+	struct socket *sock1 = NULL, *sock2;
 	int fd1, fd2, err;
 	struct file *newfile1, *newfile2;
 	int flags;
@@ -1446,7 +1446,7 @@ out:
 
 SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int, addrlen)
 {
-	struct socket *sock;
+	struct socket *sock = NULL;
 	struct sockaddr_storage address;
 	int err, fput_needed;
 
@@ -1475,7 +1475,7 @@ SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int, addrlen)
 
 SYSCALL_DEFINE2(listen, int, fd, int, backlog)
 {
-	struct socket *sock;
+	struct socket *sock = NULL;
 	int err, fput_needed;
 	int somaxconn;
 
@@ -1601,7 +1601,7 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
 SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr,
 		int, addrlen)
 {
-	struct socket *sock;
+	struct socket *sock = NULL;
 	struct sockaddr_storage address;
 	int err, fput_needed;
 
@@ -1633,7 +1633,7 @@ out:
 SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 		int __user *, usockaddr_len)
 {
-	struct socket *sock;
+	struct socket *sock = NULL;
 	struct sockaddr_storage address;
 	int len, err, fput_needed;
 
@@ -1664,7 +1664,7 @@ out:
 SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 		int __user *, usockaddr_len)
 {
-	struct socket *sock;
+	struct socket *sock = NULL;
 	struct sockaddr_storage address;
 	int len, err, fput_needed;
 
@@ -1697,7 +1697,7 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len,
 		unsigned, flags, struct sockaddr __user *, addr,
 		int, addr_len)
 {
-	struct socket *sock;
+	struct socket *sock = NULL;
 	struct sockaddr_storage address;
 	int err;
 	struct msghdr msg;
@@ -1756,7 +1756,7 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 		unsigned, flags, struct sockaddr __user *, addr,
 		int __user *, addr_len)
 {
-	struct socket *sock;
+	struct socket *sock = NULL;
 	struct iovec iov;
 	struct msghdr msg;
 	struct sockaddr_storage address;
@@ -1812,7 +1812,7 @@ SYSCALL_DEFINE5(setsockopt, int, fd, int, level, int, optname,
 		char __user *, optval, int, optlen)
 {
 	int err, fput_needed;
-	struct socket *sock;
+	struct socket *sock = NULL;
 
 	if (optlen < 0)
 		return -EINVAL;
@@ -1846,7 +1846,7 @@ SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname,
 		char __user *, optval, int __user *, optlen)
 {
 	int err, fput_needed;
-	struct socket *sock;
+	struct socket *sock = NULL;
 
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (sock != NULL) {
@@ -1875,7 +1875,7 @@ out_put:
 SYSCALL_DEFINE2(shutdown, int, fd, int, how)
 {
 	int err, fput_needed;
-	struct socket *sock;
+	struct socket *sock = NULL;
 
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (sock != NULL) {
@@ -2041,7 +2041,7 @@ int __sys_sendmmsg(int fd, struct mmsghdr __user *mmsg, unsigned int vlen,
 		   unsigned int flags)
 {
 	int fput_needed, err, datagrams;
-	struct socket *sock;
+	struct socket *sock = NULL;
 	struct mmsghdr __user *entry;
 	struct compat_mmsghdr __user *compat_entry;
 	struct msghdr msg_sys;
@@ -2217,7 +2217,7 @@ int __sys_recvmmsg(int fd, struct mmsghdr __user *mmsg, unsigned int vlen,
 		   unsigned int flags, struct timespec *timeout)
 {
 	int fput_needed, err, datagrams;
-	struct socket *sock;
+	struct socket *sock = NULL;
 	struct mmsghdr __user *entry;
 	struct compat_mmsghdr __user *compat_entry;
 	struct msghdr msg_sys;

@@ -502,7 +502,7 @@ int __jbd2_log_start_commit(journal_t *journal, tid_t target)
 		WARN_ONCE(1, "JBD2: bad log_start_commit: %u %u %u %u\n",
 			  journal->j_commit_request,
 			  journal->j_commit_sequence,
-			  target, journal->j_running_transaction ? 
+			  target, journal->j_running_transaction ?
 			  journal->j_running_transaction->t_tid : 0);
 	return 0;
 }
@@ -758,7 +758,7 @@ int jbd2_journal_bmap(journal_t *journal, unsigned long blocknr,
 struct journal_head *jbd2_journal_get_descriptor_buffer(journal_t *journal)
 {
 	struct buffer_head *bh;
-	unsigned long long blocknr;
+	unsigned long long blocknr = 0;
 	int err;
 
 	err = jbd2_journal_next_log_block(journal, &blocknr);
@@ -2547,4 +2547,3 @@ static void __exit journal_exit(void)
 MODULE_LICENSE("GPL");
 module_init(journal_init);
 module_exit(journal_exit);
-
