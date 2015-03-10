@@ -402,7 +402,7 @@ static int touch_control_panel_cb(struct notifier_block *this,
 static ssize_t show_s2s_enabled(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
-	return snprintf(buf, 1, "%u\n", s2s_enabled);
+	return snprintf(buf, sizeof(*buf), "%u\n", s2s_enabled);
 }
 
 static ssize_t store_s2s_enabled(struct kobject *kobj,
