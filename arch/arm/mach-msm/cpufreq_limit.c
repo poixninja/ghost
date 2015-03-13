@@ -15,9 +15,9 @@
  */
 
 #include <linux/cpufreq.h>
-#include <linux/earlysuspend.h>
 #include <linux/module.h>
 #include <mach/cpufreq.h>
+#include <mach/mmi_panel_notifier.h>
 
 #define CPUFREQ_LIMIT "cpufreq_limit"
 
@@ -26,6 +26,7 @@ module_param(suspend_max_freq, uint, 0644);
 
 static uint32_t previous_max_freq = MSM_CPUFREQ_NO_LIMIT;
 static struct work_struct suspend_work, resume_work;
+static struct notifier_block panel_nb;
 
 static void cpufreq_limit_suspend(struct work_struct *work)
 {
@@ -61,34 +62,44 @@ static void cpufreq_limit_resume(struct work_struct *work)
 	}
 }
 
-static void cpufreq_limit_early_suspend(struct early_suspend *h)
+static int cpufreq_limit_panel_cb(struct notifier_block *this,
+		unsigned long event, void *data)
 {
-	schedule_work(&suspend_work);
-}
+	switch (event) {
+	case MMI_PANEL_EVENT_PWR_ON:
+		schedule_work(&resume_work);
+		break;
+	case MMI_PANEL_EVENT_PRE_DEINIT:
+		schedule_work(&suspend_work);
+		break;
+	default:
+		break;
+	}
 
-static void cpufreq_limit_late_resume(struct early_suspend *h)
-{
-	schedule_work(&resume_work);
+	return 0;
 }
-
-static struct early_suspend cpufreq_limit_suspend_handler = {
-	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
-	.suspend = cpufreq_limit_early_suspend,
-	.resume = cpufreq_limit_late_resume,
-};
 
 static int __init cpufreq_limit_init(void)
 {
 	pr_info("%s: Initialized", CPUFREQ_LIMIT);
 
-	register_early_suspend(&cpufreq_limit_suspend_handler);
-
 	INIT_WORK(&suspend_work, cpufreq_limit_suspend);
 	INIT_WORK(&resume_work, cpufreq_limit_resume);
 
+	panel_nb.notifier_call = cpufreq_limit_panel_cb;
+	if (mmi_panel_register_notifier(&panel_nb) != 0)
+		pr_err("%s: Failed to register panel notifier\n", __func__);
+
 	return 0;
 }
+
+static void __exit cpufreq_limit_exit(void)
+{
+	mmi_panel_unregister_notifier(&panel_nb);
+}
+
 late_initcall(cpufreq_limit_init);
+module_exit(cpufreq_limit_exit);
 
 MODULE_AUTHOR("Zhao Wei Liew <zhaoweiliew@gmail.com>");
 MODULE_DESCRIPTION(CPUFREQ_LIMIT);
