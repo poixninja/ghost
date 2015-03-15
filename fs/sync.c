@@ -23,7 +23,7 @@
 
 static struct work_struct resume_work, suspend_work;
 static bool block_sync = true;
-static unsigned int fsync_mode __read_mostly = FSYNC_DYNAMIC;
+static unsigned int fsync_mode __read_mostly = FSYNC_DISABLED;
 module_param(fsync_mode, uint, 0644);
 
 #define VALID_FLAGS (SYNC_FILE_RANGE_WAIT_BEFORE|SYNC_FILE_RANGE_WRITE| \
