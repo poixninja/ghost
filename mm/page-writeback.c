@@ -36,7 +36,7 @@
 #include <linux/pagevec.h>
 #include <trace/events/writeback.h>
 #ifdef CONFIG_DYNAMIC_PAGE_WRITEBACK
-#include <linux/earlysuspend.h>
+#include <mach/mmi_panel_notifier.h>
 #endif
 
 /*
@@ -1692,30 +1692,30 @@ static struct notifier_block __cpuinitdata ratelimit_nb = {
 };
 
 #ifdef CONFIG_DYNAMIC_PAGE_WRITEBACK
-/*
- * Sets the dirty page writebacks interval for suspended system
- */
-static void dirty_writeback_early_suspend(struct early_suspend *handler)
+static int dirty_writeback_panel_cb(struct notifier_block *this,
+		unsigned long event, void *data)
 {
-	if (dyn_dirty_writeback_enabled)
-		set_dirty_writeback_status(false);
+	switch (event) {
+	case MMI_PANEL_EVENT_PWR_ON:
+		if (dyn_dirty_writeback_enabled)
+			set_dirty_writeback_status(true);
+		break;
+	case MMI_PANEL_EVENT_PRE_DEINIT:
+		if (dyn_dirty_writeback_enabled)
+			set_dirty_writeback_status(false);
+		break;
+	default:
+		break;
+	}
+
+	return NOTIFY_DONE;
 }
 
 /*
- * Sets the dirty page writebacks interval for active system
- */
-static void dirty_writeback_late_resume(struct early_suspend *handler)
-{
-	if (dyn_dirty_writeback_enabled)
-		set_dirty_writeback_status(true);
-}
-
-/*
- * Struct for the dirty page writeback management during suspend/resume
- */
-static struct early_suspend dirty_writeback_suspend = {
-	.suspend = dirty_writeback_early_suspend,
-	.resume = dirty_writeback_late_resume,
+* Struct for the dirty page writeback management during suspend/resume
+*/
+static struct notifier_block panel_nb = {
+	.notifier_call = dirty_writeback_panel_cb,
 };
 #endif
 
@@ -1743,7 +1743,7 @@ void __init page_writeback_init(void)
 
 #ifdef CONFIG_DYNAMIC_PAGE_WRITEBACK
 	/* Register the dirty page writeback management during suspend/resume */
-	register_early_suspend(&dirty_writeback_suspend);
+	mmi_panel_register_notifier(&panel_nb);
 #endif
 
 	writeback_set_ratelimit();
