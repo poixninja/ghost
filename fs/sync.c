@@ -16,10 +16,15 @@
 #include <linux/pagemap.h>
 #include <linux/quotaops.h>
 #include <linux/backing-dev.h>
+#include <mach/mmi_panel_notifier.h>
+#include <linux/reboot.h>
+#include <linux/fsync_control.h>
 #include "internal.h"
 
-bool fsync_enabled = true;
-module_param(fsync_enabled, bool, 0644);
+static struct work_struct resume_work, suspend_work;
+static bool block_sync = true;
+static unsigned int fsync_mode __read_mostly = FSYNC_DYNAMIC;
+module_param(fsync_mode, uint, 0644);
 
 #define VALID_FLAGS (SYNC_FILE_RANGE_WAIT_BEFORE|SYNC_FILE_RANGE_WRITE| \
 			SYNC_FILE_RANGE_WAIT_AFTER)
@@ -142,7 +147,8 @@ SYSCALL_DEFINE1(syncfs, int, fd)
 	int ret;
 	int fput_needed;
 
-	if (!fsync_enabled)
+	if (fsync_mode == FSYNC_DISABLED ||
+		(fsync_mode == FSYNC_DYNAMIC && block_sync))
 		return 0;
 
 	file = fget_light(fd, &fput_needed);
@@ -171,7 +177,8 @@ SYSCALL_DEFINE1(syncfs, int, fd)
  */
 int vfs_fsync_range(struct file *file, loff_t start, loff_t end, int datasync)
 {
-	if (!fsync_enabled)
+	if (fsync_mode == FSYNC_DISABLED ||
+		(fsync_mode == FSYNC_DYNAMIC && block_sync))
 		return 0;
 
 	if (!file->f_op || !file->f_op->fsync)
@@ -190,7 +197,8 @@ EXPORT_SYMBOL(vfs_fsync_range);
  */
 int vfs_fsync(struct file *file, int datasync)
 {
-	if (!fsync_enabled)
+	if (fsync_mode == FSYNC_DISABLED ||
+		(fsync_mode == FSYNC_DYNAMIC && block_sync))
 		return 0;
 
 	return vfs_fsync_range(file, 0, LLONG_MAX, datasync);
@@ -202,7 +210,8 @@ static int do_fsync(unsigned int fd, int datasync)
 	struct file *file;
 	int ret = -EBADF;
 
-	if (!fsync_enabled)
+	if (fsync_mode == FSYNC_DISABLED ||
+		(fsync_mode == FSYNC_DYNAMIC && block_sync))
 		return 0;
 
 	file = fget(fd);
@@ -215,7 +224,8 @@ static int do_fsync(unsigned int fd, int datasync)
 
 SYSCALL_DEFINE1(fsync, unsigned int, fd)
 {
-	if (!fsync_enabled)
+	if (fsync_mode == FSYNC_DISABLED ||
+		(fsync_mode == FSYNC_DYNAMIC && block_sync))
 		return 0;
 
 	return do_fsync(fd, 0);
@@ -223,7 +233,8 @@ SYSCALL_DEFINE1(fsync, unsigned int, fd)
 
 SYSCALL_DEFINE1(fdatasync, unsigned int, fd)
 {
-	if (!fsync_enabled)
+	if (fsync_mode == FSYNC_DISABLED ||
+		(fsync_mode == FSYNC_DYNAMIC && block_sync))
 		return 0;
 
 	return do_fsync(fd, 1);
@@ -239,7 +250,8 @@ SYSCALL_DEFINE1(fdatasync, unsigned int, fd)
  */
 int generic_write_sync(struct file *file, loff_t pos, loff_t count)
 {
-	if (!fsync_enabled)
+	if (fsync_mode == FSYNC_DISABLED ||
+		(fsync_mode == FSYNC_DYNAMIC && block_sync))
 		return 0;
 
 	if (!(file->f_flags & O_DSYNC) && !IS_SYNC(file->f_mapping->host))
@@ -306,7 +318,8 @@ SYSCALL_DEFINE(sync_file_range)(int fd, loff_t offset, loff_t nbytes,
 	int fput_needed;
 	umode_t i_mode;
 
-	if (!fsync_enabled)
+	if (fsync_mode == FSYNC_DISABLED ||
+		(fsync_mode == FSYNC_DYNAMIC && block_sync))
 		return 0;
 
 	ret = -EINVAL;
@@ -408,3 +421,108 @@ asmlinkage long SyS_sync_file_range2(long fd, long flags,
 }
 SYSCALL_ALIAS(sys_sync_file_range2, SyS_sync_file_range2);
 #endif
+
+static void fsync_suspend(struct work_struct *work)
+{
+	block_sync = false;
+
+	if (fsync_mode == FSYNC_DYNAMIC) {
+		wakeup_flusher_threads(0, WB_REASON_SYNC);
+		sync_filesystems(0);
+		sync_filesystems(1);
+	}
+}
+
+static void fsync_resume(struct work_struct *work)
+{
+	block_sync = true;
+}
+
+static int fsync_panel_cb(struct notifier_block *this,
+		unsigned long event, void *data)
+{
+	switch (event) {
+	case MMI_PANEL_EVENT_PWR_ON:
+		schedule_work(&resume_work);
+		break;
+	case MMI_PANEL_EVENT_PRE_DEINIT:
+		schedule_work(&suspend_work);
+		break;
+	default:
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block panel_nb = {
+	.notifier_call = fsync_panel_cb,
+};
+
+static int fsync_reboot_cb(struct notifier_block *this,
+				unsigned long event,
+				void *data)
+{
+	if (fsync_mode == FSYNC_ENABLED)
+		return NOTIFY_DONE;
+
+	switch (event) {
+	case SYS_DOWN:
+	case SYS_HALT:
+		block_sync = false;
+
+		wakeup_flusher_threads(0, WB_REASON_SYNC);
+		sync_filesystems(0);
+		sync_filesystems(1);
+		break;
+	default:
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block reboot_nb = {
+	.notifier_call = fsync_reboot_cb,
+};
+
+static int fsync_panic_cb(struct notifier_block *this,
+		unsigned long event, void *ptr)
+{
+	if (fsync_mode == FSYNC_ENABLED)
+		return NOTIFY_DONE;
+
+	block_sync = false;
+
+	wakeup_flusher_threads(0, WB_REASON_SYNC);
+	sync_filesystems(0);
+	sync_filesystems(1);
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block panic_nb = {
+	.notifier_call  = fsync_panic_cb,
+	.priority       = INT_MAX,
+};
+
+static int __init fsync_init(void)
+{
+	INIT_WORK(&suspend_work, fsync_suspend);
+	INIT_WORK(&resume_work, fsync_resume);
+
+	mmi_panel_register_notifier(&panel_nb);
+	register_reboot_notifier(&reboot_nb);
+	atomic_notifier_chain_register(&panic_notifier_list, &panic_nb);
+
+	return 0;
+}
+module_init(fsync_init);
+
+static void __exit fsync_exit(void)
+{
+	atomic_notifier_chain_unregister(&panic_notifier_list, &panic_nb);
+	unregister_reboot_notifier(&reboot_nb);
+	mmi_panel_unregister_notifier(&panel_nb);
+}
+module_exit(fsync_exit);
