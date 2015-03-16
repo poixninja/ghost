@@ -2,7 +2,7 @@
 
 export KERNELDIR=/home/zwliew/android/ghost
 export MKBOOTIMGDIR=/home/zwliew/android/mkbootimg
-export OUTDIR=/home/zwliew/android/out/ghost
+export OUTDIR=/home/zwliew/android/ghost/out/ghost
 export ZWLIEW_VERSION=r$1
 
 cd $KERNELDIR
