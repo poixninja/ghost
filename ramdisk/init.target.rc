@@ -453,13 +453,15 @@ on property:init.svc.bootanim=stopped
     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor "interactive"
     write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay "20000 1000000:40000 1200000:20000"
     write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 90
-    write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 1026000
+    write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 810000
     write /sys/devices/system/cpu/cpufreq/interactive/io_is_busy 1
     write /sys/devices/system/cpu/cpufreq/interactive/target_loads "85 1100000:90 1300000:70"
-    write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 40000
+    write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time "40000 1200000:80000"
     write /sys/devices/system/cpu/cpufreq/interactive/max_freq_hysteresis 100000
-    write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 30000
+    write /sys/devices/system/cpu/cpufreq/interactive/timer_rate "40000 400000:30000 1200000:20000"
     write /sys/devices/system/cpu/cpufreq/interactive/suspend_timer_rate 50000
+    write /sys/devices/system/cpu/cpufreq/interactive/timer_slack "-1 600000:30000 800000:40000 1200000:20000"
+    write /sys/devices/system/cpu/cpufreq/interactive/powersave_bias 1
 
     write /sys/module/cpu_boost/parameters/boost_ms 20
     write /sys/module/cpu_boost/parameters/sync_threshold 1242000
