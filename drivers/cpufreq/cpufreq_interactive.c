@@ -31,7 +31,7 @@
 #include <linux/slab.h>
 #include <linux/kernel_stat.h>
 #include <asm/cputime.h>
-#include <linux/earlysuspend.h>
+#include <mach/mmi_panel_notifier.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
@@ -71,6 +71,7 @@ static struct mutex gov_lock;
 
 /* Suspend and resume scaling */
 static struct work_struct resume_work, suspend_work;
+static struct notifier_block panel_nb;
 static bool is_suspended;
 
 /* Hi speed to bump to from lo speed when load burst (default max) */
@@ -695,21 +696,22 @@ static void cpufreq_interactive_resume(struct work_struct *work)
 	is_suspended = false;
 }
 
-static void cpufreq_interactive_early_suspend(struct early_suspend *h)
+static int cpufreq_interactive_panel_cb(struct notifier_block *this,
+		unsigned long event, void *data)
 {
-	schedule_work(&suspend_work);
-}
+	switch (event) {
+	case MMI_PANEL_EVENT_PWR_ON:
+		schedule_work(&resume_work);
+		break;
+	case MMI_PANEL_EVENT_PRE_DEINIT:
+		schedule_work(&suspend_work);
+		break;
+	default:
+		break;
+	}
 
-static void cpufreq_interactive_late_resume(struct early_suspend *h)
-{
-	schedule_work(&resume_work);
+	return NOTIFY_DONE;
 }
-
-static struct early_suspend cpufreq_early_suspend = {
-	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
-	.suspend = cpufreq_interactive_early_suspend,
-	.resume = cpufreq_interactive_late_resume
-};
 
 static int cpufreq_interactive_notifier(
 	struct notifier_block *nb, unsigned long val, void *data)
@@ -1272,7 +1274,10 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			return rc;
 		}
 
-		register_early_suspend(&cpufreq_early_suspend);
+		panel_nb.notifier_call = cpufreq_interactive_panel_cb;
+		if (mmi_panel_register_notifier(&panel_nb) != 0)
+			pr_err("%s: Failed to register panel notifier\n", __func__);
+
 		idle_notifier_register(&cpufreq_interactive_idle_nb);
 		cpufreq_register_notifier(
 			&cpufreq_notifier_block, CPUFREQ_TRANSITION_NOTIFIER);
@@ -1299,7 +1304,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		cpufreq_unregister_notifier(
 			&cpufreq_notifier_block, CPUFREQ_TRANSITION_NOTIFIER);
 		idle_notifier_unregister(&cpufreq_interactive_idle_nb);
-		unregister_early_suspend(&cpufreq_early_suspend);
+		mmi_panel_unregister_notifier(&panel_nb);
 		sysfs_remove_group(cpufreq_global_kobject,
 				&interactive_attr_group);
 		mutex_unlock(&gov_lock);
