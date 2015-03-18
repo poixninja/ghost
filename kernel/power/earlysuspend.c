@@ -138,7 +138,9 @@ static void early_suspend(struct work_struct *work)
 	}
 	mutex_unlock(&early_suspend_lock);
 
+#ifdef CONFIG_PM_SYNC_BEFORE_SUSPEND
 	suspend_sys_sync_queue();
+#endif
 	stuck_wakelock_wdset();
 abort:
 	spin_lock_irqsave(&state_lock, irqflags);
