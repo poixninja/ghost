@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export KERNELDIR=/home/zwliew/android/ghost
-export MKBOOTIMGDIR=/home/zwliew/android/mkbootimg
+export MKBOOTIMGDIR=/home/zwliew/android/mkbootimg_tools
 export OUTDIR=/home/zwliew/android/ghost/out/ghost
 export ZWLIEW_VERSION=r$1
 
