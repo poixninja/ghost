@@ -1,0 +1,18 @@
+ui_print("zwliew Kernel");
+ui_print("for Moto X");
+
+ui_print("Mounting /system");
+run_program("/sbin/busybox", "mount", "/system");
+
+ui_print("Extracting modules");
+package_extract_dir("system", "/system");
+set_perm_recursive(0, 0, 0755, 0644, "/system/lib/modules");
+
+ui_print("Installing kernel");
+package_extract_file("boot.img", "/dev/block/platform/msm_sdcc.1/by-name/boot");
+
+ui_print("Kernel installed!");
+ui_print("Brought to you by zwliew");
+ui_print("");
+ui_print("Enjoy!");
+show_progress(0.100000, 0);
