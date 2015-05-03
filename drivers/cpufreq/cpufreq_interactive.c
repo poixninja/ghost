@@ -31,6 +31,7 @@
 #include <linux/slab.h>
 #include <linux/kernel_stat.h>
 #include <asm/cputime.h>
+#include <mach/mmi_panel_notifier.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
@@ -68,6 +69,11 @@ static cpumask_t speedchange_cpumask;
 static spinlock_t speedchange_cpumask_lock;
 static struct mutex gov_lock;
 
+/* Suspend and resume scaling */
+static struct work_struct resume_work, suspend_work;
+static struct notifier_block panel_nb;
+static bool is_suspended;
+
 /* Hi speed to bump to from lo speed when load burst (default max) */
 static unsigned int hispeed_freq;
 
@@ -93,6 +99,11 @@ static unsigned long min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
  */
 #define DEFAULT_TIMER_RATE (20 * USEC_PER_MSEC)
 static unsigned long timer_rate = DEFAULT_TIMER_RATE;
+
+/*
+ * The sample rate of the timer used to increase frequency (during suspend)
+ */
+static unsigned long suspend_timer_rate = DEFAULT_TIMER_RATE;
 
 /*
  * Wait this long before raising speed above hispeed, by default a single
@@ -137,14 +148,14 @@ static bool io_is_busy;
 /* Round to starting jiffy of next evaluation window */
 static u64 round_to_nw_start(u64 jif)
 {
-	unsigned long step = usecs_to_jiffies(timer_rate);
+	unsigned long step = usecs_to_jiffies(is_suspended ? suspend_timer_rate : timer_rate);
 	u64 ret;
 
 	if (align_windows) {
 		do_div(jif, step);
 		ret = (jif + 1) * step;
 	} else {
-		ret = jiffies + usecs_to_jiffies(timer_rate);
+		ret = jiffies + step;
 	}
 
 	return ret;
@@ -675,6 +686,33 @@ static void cpufreq_interactive_boost(void)
 		wake_up_process(speedchange_task);
 }
 
+static void cpufreq_interactive_suspend(struct work_struct *work)
+{
+	is_suspended = true;
+}
+
+static void cpufreq_interactive_resume(struct work_struct *work)
+{
+	is_suspended = false;
+}
+
+static int cpufreq_interactive_panel_cb(struct notifier_block *this,
+		unsigned long event, void *data)
+{
+	switch (event) {
+	case MMI_PANEL_EVENT_PWR_ON:
+		schedule_work(&resume_work);
+		break;
+	case MMI_PANEL_EVENT_PRE_DEINIT:
+		schedule_work(&suspend_work);
+		break;
+	default:
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+
 static int cpufreq_interactive_notifier(
 	struct notifier_block *nb, unsigned long val, void *data)
 {
@@ -991,6 +1029,35 @@ static ssize_t store_timer_rate(struct kobject *kobj,
 static struct global_attr timer_rate_attr = __ATTR(timer_rate, 0644,
 		show_timer_rate, store_timer_rate);
 
+
+static ssize_t show_suspend_timer_rate(struct kobject *kobj,
+			struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%lu\n", suspend_timer_rate);
+}
+
+static ssize_t store_suspend_timer_rate(struct kobject *kobj,
+			struct attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val, val_round;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	val_round = jiffies_to_usecs(usecs_to_jiffies(val));
+	if (val != val_round)
+		pr_warn("suspend_timer_rate not aligned to jiffy. Rounded up to %lu\n",
+				val_round);
+
+	suspend_timer_rate = val_round;
+	return count;
+}
+
+static struct global_attr suspend_timer_rate_attr = __ATTR(suspend_timer_rate, 0644,
+		show_suspend_timer_rate, store_suspend_timer_rate);
+
 static ssize_t show_timer_slack(
 	struct kobject *kobj, struct attribute *attr, char *buf)
 {
@@ -1116,6 +1183,7 @@ static struct attribute *interactive_attributes[] = {
 	&go_hispeed_load_attr.attr,
 	&min_sample_time_attr.attr,
 	&timer_rate_attr.attr,
+	&suspend_timer_rate_attr.attr,
 	&timer_slack.attr,
 	&boost.attr,
 	&boostpulse.attr,
@@ -1206,6 +1274,10 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			return rc;
 		}
 
+		panel_nb.notifier_call = cpufreq_interactive_panel_cb;
+		if (mmi_panel_register_notifier(&panel_nb) != 0)
+			pr_err("%s: Failed to register panel notifier\n", __func__);
+
 		idle_notifier_register(&cpufreq_interactive_idle_nb);
 		cpufreq_register_notifier(
 			&cpufreq_notifier_block, CPUFREQ_TRANSITION_NOTIFIER);
@@ -1232,6 +1304,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		cpufreq_unregister_notifier(
 			&cpufreq_notifier_block, CPUFREQ_TRANSITION_NOTIFIER);
 		idle_notifier_unregister(&cpufreq_interactive_idle_nb);
+		mmi_panel_unregister_notifier(&panel_nb);
 		sysfs_remove_group(cpufreq_global_kobject,
 				&interactive_attr_group);
 		mutex_unlock(&gov_lock);
@@ -1317,6 +1390,9 @@ static int __init cpufreq_interactive_init(void)
 		spin_lock_init(&pcpu->target_freq_lock);
 		init_rwsem(&pcpu->enable_sem);
 	}
+
+	INIT_WORK(&suspend_work, cpufreq_interactive_suspend);
+	INIT_WORK(&resume_work, cpufreq_interactive_resume);
 
 	spin_lock_init(&target_loads_lock);
 	spin_lock_init(&speedchange_cpumask_lock);
